@@ -12,10 +12,10 @@ function makeDerangement(names){let x;do{x=shuffle(names)}while(names.some((n,i)
 $("joinRoom").onclick=()=>{const code=$("roomKey").value.trim().toUpperCase();setError("homeError","");if(!/^[A-Z0-9]{6}$/.test(code)){setError("homeError","6자리 방 키를 입력해주세요.");return}loadRoom(code)};
 $("roomKey").addEventListener("keydown",e=>{if(e.key==="Enter")$("joinRoom").click()});
 
-$("createRoom").onclick=()=>{hide("home");show("names");$("count").focus();setError("nameError","")};
+$("createRoom").onclick=()=>{state.roomId=makeRoomCode();state.participants=[];state.assignments={};$("newRoomCode").textContent=state.roomId;hide("home");show("names");$("count").focus();setError("nameError","")};
 $("makeNames").onclick=()=>{const n=Number($("count").value);setError("nameError","");if(!Number.isInteger(n)||n<2||n>100){setError("nameError","2~100명의 인원을 입력해주세요.");return}$("nameInputs").innerHTML="";for(let i=0;i<n;i++){const r=document.createElement("div");r.className="name-row";const s=document.createElement("span");s.textContent=i+1;const x=document.createElement("input");x.className="name-input";x.placeholder=`이름 ${i+1}`;r.append(s,x);$("nameInputs").append(r)}show("draw");$("nameInputs").querySelector("input")?.focus()};
 
-$("draw").onclick=async()=>{setError("nameError","");const names=[...document.querySelectorAll(".name-input")].map(x=>x.value.trim());if(names.some(x=>!x)){setError("nameError","모든 이름을 입력해주세요.");return}if(new Set(names).size!==names.length){setError("nameError","중복 이름이 있어요. 서로 다른 이름을 사용해주세요.");return}state.participants=names;state.assignments=makeDerangement(names);state.roomId=makeRoomCode();try{if(SUPABASE_URL&&SUPABASE_ANON_KEY)await saveOnline();else saveLocal()}catch(e){console.error(e);setError("nameError","에러: "+e.message);return}openRoom()};
+$("draw").onclick=async()=>{setError("nameError","");const names=[...document.querySelectorAll(".name-input")].map(x=>x.value.trim());if(names.some(x=>!x)){setError("nameError","모든 이름을 입력해주세요.");return}if(new Set(names).size!==names.length){setError("nameError","중복 이름이 있어요. 서로 다른 이름을 사용해주세요.");return}state.participants=names;state.assignments=makeDerangement(names);try{if(SUPABASE_URL&&SUPABASE_ANON_KEY)await saveOnline();else saveLocal()}catch(e){console.error(e);setError("nameError","에러: "+e.message);return}openRoom()};
 function saveLocal(){localStorage.setItem("manitto:"+state.roomId,JSON.stringify({participants:state.participants,assignments:state.assignments,createdAt:Date.now()}))}
 async function saveOnline(){const r=await fetch(SUPABASE_URL+"/rest/v1/rooms",{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Prefer":"return=minimal"},body:JSON.stringify({room_code:state.roomId,participants:state.participants,assignments:state.assignments})});if(!r.ok)throw new Error(await r.text())}
 
@@ -68,7 +68,7 @@ $("deleteRoom").onclick=async()=>{
   }
 };
 
-$("newGame").onclick=()=>{state={roomId:null,participants:[],assignments:{}};const base=location.pathname.split("/room/")[0].replace(/\/$/,"");history.replaceState(null,"",base+"/");$("roomKey").value="";$("count").value="";$("nameInputs").innerHTML="";hide("room");hide("names");show("home")};
+$("newGame").onclick=()=>{state={roomId:null,participants:[],assignments:{}};const base=location.pathname.split("/room/")[0].replace(/\/$/,"");history.replaceState(null,"",base+"/");$("roomKey").value="";$("count").value="";$("nameInputs").innerHTML="";$("newRoomCode").textContent="";hide("room");hide("names");show("home")};
 $("backHome").onclick=()=>{hide("names");show("home");$("roomKey").focus()};
 
 async function loadRoom(code){hide("home");hide("names");show("loading");try{let data=null;if(SUPABASE_URL&&SUPABASE_ANON_KEY){const r=await fetch(SUPABASE_URL+"/rest/v1/rooms?room_code=eq."+encodeURIComponent(code)+"&select=participants,assignments",{headers:{apikey:SUPABASE_ANON_KEY,Authorization:"Bearer "+SUPABASE_ANON_KEY}});if(r.ok){const rows=await r.json();if(rows[0])data=rows[0]}}else{const raw=localStorage.getItem("manitto:"+code);if(raw)data=JSON.parse(raw)}if(!data)throw new Error("not found");state.roomId=code;state.participants=data.participants;state.assignments=data.assignments;openRoom()}catch(e){console.error(e);hide("loading");show("home");$("roomKey").value=code;setError("roomError","에러: " + e.message)}}
