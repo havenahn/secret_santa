@@ -8,3 +8,8 @@ create table if not exists public.rooms (
 alter table public.rooms enable row level security;
 create policy "rooms can be read" on public.rooms for select to anon using (true);
 create policy "rooms can be created" on public.rooms for insert to anon with check (true);
+
+create policy "rooms can be deleted"
+on public.rooms for delete
+to anon
+using (true);

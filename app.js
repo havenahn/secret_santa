@@ -23,6 +23,51 @@ function openRoom(){hide("home");hide("names");hide("loading");show("room");$("r
 
 $("copyLink").onclick=async()=>{const url=location.href;try{await navigator.clipboard.writeText(url)}catch{const t=document.createElement("textarea");t.value=url;document.body.append(t);t.select();document.execCommand("copy");t.remove()}$("copyLink").textContent="✓ 링크 복사됨";$("copyLink").classList.add("copied");setTimeout(()=>{$("copyLink").textContent="🔗 방 링크 복사";$("copyLink").classList.remove("copied")},1800)};
 $("reveal").onclick=()=>{const n=$("personSelect").value;if(!n){$("result").innerHTML='<div class="error">내 이름을 선택해주세요.</div>';return}$("result").innerHTML=`<div class="label">${esc(n)}님의 마니또는</div><div class="name">🎁 ${esc(state.assignments[n])}</div>`};
+$("deleteRoom").onclick=async()=>{
+  if(!state.roomId) return;
+  const ok=confirm(
+    "이 마니또 방을 정말 삭제할까요?\n\n삭제하면 모든 참가자가 이 방에 들어갈 수 없게 됩니다."
+  );
+  if(!ok) return;
+
+  $("deleteRoom").disabled=true;
+  $("deleteRoom").textContent="삭제하는 중...";
+
+  try{
+    if(SUPABASE_URL && SUPABASE_ANON_KEY){
+      const r=await fetch(
+        SUPABASE_URL+"/rest/v1/rooms?room_code=eq."+encodeURIComponent(state.roomId),
+        {
+          method:"DELETE",
+          headers:{
+            "apikey":SUPABASE_ANON_KEY,
+            "Authorization":"Bearer "+SUPABASE_ANON_KEY
+          }
+        }
+      );
+      if(!r.ok) throw new Error(await r.text());
+    }else{
+      localStorage.removeItem("manitto:"+state.roomId);
+    }
+
+    state={roomId:null,participants:[],assignments:{}};
+    const base=location.pathname.split("/room/")[0].replace(/\/$/,"");
+    history.replaceState(null,"",base+"/");
+    $("roomKey").value="";
+    $("count").value="";
+    $("nameInputs").innerHTML="";
+    hide("room");
+    hide("names");
+    show("home");
+    setError("homeError","마니또 방이 삭제되었습니다.");
+  }catch(e){
+    console.error(e);
+    $("deleteRoom").disabled=false;
+    $("deleteRoom").textContent="🗑️ 마니또 지우기";
+    alert("방을 삭제하지 못했어요. Supabase의 DELETE 정책이 설정되어 있는지 확인해주세요.");
+  }
+};
+
 $("newGame").onclick=()=>{state={roomId:null,participants:[],assignments:{}};const base=location.pathname.split("/room/")[0].replace(/\/$/,"");history.replaceState(null,"",base+"/");$("roomKey").value="";$("count").value="";$("nameInputs").innerHTML="";hide("room");hide("names");show("home")};
 $("backHome").onclick=()=>{hide("names");show("home");$("roomKey").focus()};
 
