@@ -3,8 +3,8 @@
   현재는 localStorage 모드로 바로 테스트할 수 있습니다.
   온라인 방 공유를 활성화하려면 아래 SUPABASE 설정을 입력하세요.
 */
-const SUPABASE_URL = "";
-const SUPABASE_ANON_KEY = "";
+const SUPABASE_URL = "https://elobmhhdblluzumiqfmp.supabase.co/rest/v1/";
+const SUPABASE_ANON_KEY = "sb_publishable_N18S_C93EG8adwRJ0cTYRA_3F6kPYfH";
 
 const $ = id => document.getElementById(id);
 let state = { roomId:null, participants:[], assignments:{} };
