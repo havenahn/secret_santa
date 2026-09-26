@@ -1,77 +1,18 @@
 const SUPABASE_URL = "https://elobmhhdblluzumiqfmp.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_N18S_C93EG8adwRJ0cTYRA_3F6kPYfH";
-
-const $=id=>document.getElementById(id);
-let state={roomId:null,participants:[],assignments:{}};
-function show(id){$(id).classList.remove("hidden")} function hide(id){$(id).classList.add("hidden")}
-function setError(id,msg){$(id).textContent=msg||""}
-function makeRoomCode(){const c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";for(let i=0;i<6;i++)s+=c[Math.floor(Math.random()*c.length)];return s}
-function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function makeDerangement(names){let x;do{x=shuffle(names)}while(names.some((n,i)=>n===x[i]));const o={};names.forEach((n,i)=>o[n]=x[i]);return o}
-
-$("joinRoom").onclick=()=>{const code=$("roomKey").value.trim().toUpperCase();setError("homeError","");if(!/^[A-Z0-9]{6}$/.test(code)){setError("homeError","6자리 방 키를 입력해주세요.");return}loadRoom(code)};
-$("roomKey").addEventListener("keydown",e=>{if(e.key==="Enter")$("joinRoom").click()});
-
-$("createRoom").onclick=()=>{state.roomId=makeRoomCode();state.participants=[];state.assignments={};$("newRoomCode").textContent=state.roomId;hide("home");show("names");$("count").focus();setError("nameError","")};
-$("makeNames").onclick=()=>{const n=Number($("count").value);setError("nameError","");if(!Number.isInteger(n)||n<2||n>100){setError("nameError","2~100명의 인원을 입력해주세요.");return}$("nameInputs").innerHTML="";for(let i=0;i<n;i++){const r=document.createElement("div");r.className="name-row";const s=document.createElement("span");s.textContent=i+1;const x=document.createElement("input");x.className="name-input";x.placeholder=`이름 ${i+1}`;r.append(s,x);$("nameInputs").append(r)}show("draw");$("nameInputs").querySelector("input")?.focus()};
-
-$("draw").onclick=async()=>{setError("nameError","");const names=[...document.querySelectorAll(".name-input")].map(x=>x.value.trim());if(names.some(x=>!x)){setError("nameError","모든 이름을 입력해주세요.");return}if(new Set(names).size!==names.length){setError("nameError","중복 이름이 있어요. 서로 다른 이름을 사용해주세요.");return}state.participants=names;state.assignments=makeDerangement(names);try{if(SUPABASE_URL&&SUPABASE_ANON_KEY)await saveOnline();else saveLocal()}catch(e){console.error(e);setError("nameError","에러: "+e.message);return}openRoom()};
-function saveLocal(){localStorage.setItem("manitto:"+state.roomId,JSON.stringify({participants:state.participants,assignments:state.assignments,createdAt:Date.now()}))}
-async function saveOnline(){const r=await fetch(SUPABASE_URL+"/rest/v1/rooms",{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,"Prefer":"return=minimal"},body:JSON.stringify({room_code:state.roomId,participants:state.participants,assignments:state.assignments})});if(!r.ok)throw new Error(await r.text())}
-
-function openRoom(){hide("home");hide("names");hide("loading");show("room");$("roomCode").textContent=state.roomId;$("personSelect").innerHTML='<option value="">내 이름을 선택하세요</option>';state.participants.forEach(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;$("personSelect").append(o)});$("result").innerHTML="";const base=location.pathname.split("/room/")[0].replace(/\/$/,"");history.replaceState(null,"",base+"/room/"+state.roomId)}
-
-$("copyLink").onclick=async()=>{const url=location.href;try{await navigator.clipboard.writeText(url)}catch{const t=document.createElement("textarea");t.value=url;document.body.append(t);t.select();document.execCommand("copy");t.remove()}$("copyLink").textContent="✓ 링크 복사됨";$("copyLink").classList.add("copied");setTimeout(()=>{$("copyLink").textContent="🔗 방 링크 복사";$("copyLink").classList.remove("copied")},1800)};
-$("reveal").onclick=()=>{const n=$("personSelect").value;if(!n){$("result").innerHTML='<div class="error">내 이름을 선택해주세요.</div>';return}$("result").innerHTML=`<div class="label">${esc(n)}님의 마니또는</div><div class="name">🎁 ${esc(state.assignments[n])}</div>`};
-$("deleteRoom").onclick=async()=>{
-  if(!state.roomId) return;
-  const ok=confirm(
-    "이 마니또 방을 정말 삭제할까요?\n\n삭제하면 모든 참가자가 이 방에 들어갈 수 없게 됩니다."
-  );
-  if(!ok) return;
-
-  $("deleteRoom").disabled=true;
-  $("deleteRoom").textContent="삭제하는 중...";
-
-  try{
-    if(SUPABASE_URL && SUPABASE_ANON_KEY){
-      const r=await fetch(
-        SUPABASE_URL+"/rest/v1/rooms?room_code=eq."+encodeURIComponent(state.roomId),
-        {
-          method:"DELETE",
-          headers:{
-            "apikey":SUPABASE_ANON_KEY,
-            "Authorization":"Bearer "+SUPABASE_ANON_KEY
-          }
-        }
-      );
-      if(!r.ok) throw new Error(await r.text());
-    }else{
-      localStorage.removeItem("manitto:"+state.roomId);
-    }
-
-    state={roomId:null,participants:[],assignments:{}};
-    const base=location.pathname.split("/room/")[0].replace(/\/$/,"");
-    history.replaceState(null,"",base+"/");
-    $("roomKey").value="";
-    $("count").value="";
-    $("nameInputs").innerHTML="";
-    hide("room");
-    hide("names");
-    show("home");
-    setError("homeError","마니또 방이 삭제되었습니다.");
-  }catch(e){
-    console.error(e);
-    $("deleteRoom").disabled=false;
-    $("deleteRoom").textContent="🗑️ 마니또 지우기";
-    alert("방을 삭제하지 못했어요. Supabase의 DELETE 정책이 설정되어 있는지 확인해주세요.");
-  }
-};
-
-$("newGame").onclick=()=>{state={roomId:null,participants:[],assignments:{}};const base=location.pathname.split("/room/")[0].replace(/\/$/,"");history.replaceState(null,"",base+"/");$("roomKey").value="";$("count").value="";$("nameInputs").innerHTML="";$("newRoomCode").textContent="";hide("room");hide("names");show("home")};
-$("backHome").onclick=()=>{hide("names");show("home");$("roomKey").focus()};
-
-async function loadRoom(code){hide("home");hide("names");show("loading");try{let data=null;if(SUPABASE_URL&&SUPABASE_ANON_KEY){const r=await fetch(SUPABASE_URL+"/rest/v1/rooms?room_code=eq."+encodeURIComponent(code)+"&select=participants,assignments",{headers:{apikey:SUPABASE_ANON_KEY,Authorization:"Bearer "+SUPABASE_ANON_KEY}});if(r.ok){const rows=await r.json();if(rows[0])data=rows[0]}}else{const raw=localStorage.getItem("manitto:"+code);if(raw)data=JSON.parse(raw)}if(!data)throw new Error("not found");state.roomId=code;state.participants=data.participants;state.assignments=data.assignments;openRoom()}catch(e){console.error(e);hide("loading");show("home");$("roomKey").value=code;setError("roomError","에러: " + e.message)}}
-function esc(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-
-(function(){const p=location.pathname.match(/\/room\/([^/]+)/i);const q=new URLSearchParams(location.search).get("room");if(p)loadRoom(p[1].toUpperCase());else if(q)loadRoom(q.toUpperCase())})();
+const $=id=>document.getElementById(id);let room=null,hostMode=false;
+function show(id){$(id).classList.remove('hidden')}function hide(id){$(id).classList.add('hidden')}function err(id,msg){$(id).textContent=msg||''}
+function code(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join('')}
+async function rpc(fn,args){const r=await fetch(SUPABASE_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+SUPABASE_ANON_KEY},body:JSON.stringify(args)});let data;try{data=await r.json()}catch{data={}}if(!r.ok)throw Error(data.message||data.details||JSON.stringify(data));return data}
+function urlRoom(c){const base=location.pathname.split('/room/')[0].replace(/\/$/,'');history.replaceState(null,'',base+'/room/'+c)}
+async function open(c){room=c;hide('home');hide('create');show('room');$('roomCode').textContent=c;urlRoom(c);$('hostPanel').classList.add('hidden');$('startedPanel').classList.add('hidden');await refresh()}
+async function refresh(){if(!room)return;try{const d=await rpc('room_status',{p_code:room});$('rosterCount').textContent=`현재 ${d.participants.length}명 참가 · 인원 제한 없음 · 상태: ${d.started?'추첨 완료':'등록 중'}`;$('roster').innerHTML='';d.participants.forEach(n=>{const li=document.createElement('li');li.textContent=n;$('roster').append(li)});if(d.started){show('startedPanel');hide('hostPanel')}else{hide('startedPanel');if(hostMode)show('hostPanel');else hide('hostPanel')}}catch(e){err('registerError',e.message)}}
+$('createRoom').onclick=()=>{hide('home');show('create');err('createError','')};$('createBack').onclick=()=>{hide('create');show('home')};
+$('createSubmit').onclick=async()=>{const name=$('hostName').value.trim(),pw=$('hostPass').value;if(!name||pw.length<6){err('createError','이름을 입력하고 방장 비밀번호를 6자 이상 설정해주세요.');return}try{let c=code();await rpc('create_room',{p_code:c,p_host_name:name,p_host_password:pw});hostMode=true;await open(c);$('personName').value=name;$('personPass').value='';}catch(e){err('createError',e.message)}};
+$('joinRoom').onclick=async()=>{const c=$('roomKey').value.trim().toUpperCase();err('homeError','');if(!/^[A-Z0-9]{6}$/.test(c)){err('homeError','6자리 방 키를 입력해주세요.');return}hostMode=false;try{await open(c)}catch(e){err('homeError',e.message)}};$('roomKey').addEventListener('keydown',e=>{if(e.key==='Enter')$('joinRoom').click()});
+$('register').onclick=async()=>{const n=$('personName').value.trim(),pw=$('personPass').value,avoid=$('avoid').value.trim();if(!n||pw.length<6){err('registerError','이름을 입력하고 비밀번호를 6자 이상 설정해주세요.');return}try{await rpc('register_person',{p_code:room,p_name:n,p_password:pw,p_avoid:avoid});err('registerError','등록했어요!');await refresh()}catch(e){err('registerError',e.message)}};
+$('start').onclick=async()=>{try{await rpc('start_draw',{p_code:room,p_host_password:$('hostPassStart').value});err('startError','추첨 완료!');await refresh()}catch(e){err('startError',e.message)}};
+$('reveal').onclick=async()=>{try{const d=await rpc('reveal_result',{p_code:room,p_name:$('revealName').value.trim(),p_password:$('revealPass').value});$('result').textContent=`🎁 ${d.recipient}님
+받고 싶지 않은 것: ${d.avoid||'등록된 내용 없음'}`}catch(e){$('result').textContent=e.message}};
+$('copyLink').onclick=async()=>{try{await navigator.clipboard.writeText(location.href);$('copyLink').textContent='✓ 복사 완료'}catch{err('registerError','링크 복사 권한이 없어요. 주소창에서 복사해주세요.')}};$('refresh').onclick=refresh;$('backHome').onclick=()=>{room=null;hostMode=false;hide('room');show('home');history.replaceState(null,'',location.pathname.split('/room/')[0].replace(/\/$/,'')+'/')};
+(function(){const m=location.pathname.match(/\/room\/([^/]+)/i);if(m){hostMode=false;open(m[1].toUpperCase())}})();
